@@ -1,0 +1,19 @@
+{
+  "include": ["src/**/*"],
+  "compilerOptions": {
+    "target": "ESNEXT",
+    "module": "commonjs",
+    "outDir": "./dist",
+    "strict": true,
+    "moduleResolution": "node",
+    "baseUrl": "./",
+    "paths": {
+      "*": ["typings/*", "node_modules/@types/*"]
+    },
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "noUnusedParameters": true,
+    "noUnusedLocals": true
+  }
+}
