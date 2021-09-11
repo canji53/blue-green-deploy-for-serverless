@@ -1,0 +1,106 @@
+name: Blue Green Deploy Sample
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        node-version: [14.14.0]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup nodejs
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Tools version
+        run: |
+          yarn --version
+          jq --version
+
+      - name: Setup AWS Credential
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
+
+      - name: Install npm packages
+        run: |
+          export NODE_ENV=production
+          yarn install
+
+      - name: Transpile to JS
+        run: |
+          yarn build
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and push image to Amazon ECR, Deploy the new image to Lambda
+        run: |
+          ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY=bgd
+          IMAGE_TAG=${{ github.sha }}
+
+          # ビルドしたimageをECRにプッシュ
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+          # Lambdaに新しくプッシュされたImageを適用（latestバージョンに適用される）
+          aws lambda update-function-code \
+            --function-name bgd \
+            --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Deploy(=Create) the "blue" stage to API Gateway
+        run: |
+          # API Gatewayに"blue"用のステージを作成
+          yarn cdk deploy bgd-apigateway-blue-stage --require-approval never -e
+
+          # CLIから対象のAPI GatewayのAPI IDを取得
+          REST_API_ID=$(aws apigateway get-rest-apis | jq '.items[] | select(.name == "bgd") | .id')
+          echo "REST_API_ID=$REST_API_ID" >> $GITHUB_ENV
+
+          # "blue"ステージにデプロイ（デプロイメントを更新しないとAPI Gatewayの更新が反映されないため）
+          aws apigateway create-deployment \
+            --rest-api-id $REST_API_ID \
+            --stage-name blue \
+            --description "For blue stage deployment by CICD"
+
+      - name: E2E test
+        run: |
+          echo success
+
+      - name: Publish new version of Lambda, Update "green" alias to new version
+        run: |
+          # Lambdaの新しいバージョンを発行
+          aws lambda publish-version --function-name bgd >> response.json
+
+          # 発行されたバージョンのナンバリングを取得
+          JSON=`cat response.json`
+          LAMBDA_NEW_VERSION=$(echo $JSON | jq ".Version | tonumber")
+
+          # "green"エイリアスを発行バージョンに更新
+          aws lambda update-alias \
+            --function-name bgd \
+            --function-version $LAMBDA_NEW_VERSION \
+            --name green
+
+          # "green"ステージにデプロイ（デプロイメントを更新しないとAPI Gatewayの更新が反映されないため）
+          aws apigateway create-deployment \
+            --rest-api-id ${{ REST_API_ID }} \
+            --stage-name green \
+            --description "For green stage deployment by CICD"
+
+      - name: Destroy the "blue" stage
+        run: |
+          # "blue"ステージを削除
+          yarn cdk destroy bgd-apigateway-blue-stage --require-approval never -e
