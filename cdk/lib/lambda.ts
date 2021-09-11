@@ -47,15 +47,23 @@ export class ContainerLambda extends cdk.Stack {
     if (!this.function.role) {
       throw new Error(`lambda role must exist: ${this.function.functionName}`);
     }
+  }
+}
 
-    new lambda.Alias(this, `${id}-dev-alias`, {
-      aliasName: "dev",
-      version: this.function.latestVersion,
-    });
+type LambdaAliasProps = cdk.StackProps & {
+  aliasName: string;
+  version: lambda.IVersion;
+};
 
-    new lambda.Alias(this, `${id}-prod-alias`, {
-      aliasName: "prod",
-      version: this.function.latestVersion,
+export class LambdaAlias extends cdk.Stack {
+  constructor(scope: cdk.App, id: string, props: LambdaAliasProps) {
+    super(scope, id, props);
+
+    const { aliasName, version } = props;
+
+    new lambda.Alias(this, id, {
+      aliasName,
+      version,
     });
   }
 }
