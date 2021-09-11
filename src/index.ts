@@ -1,9 +1,7 @@
 import { APIGatewayProxyResult } from "aws-lambda";
 
 export const handler = async (): Promise<APIGatewayProxyResult> => {
-  const version = "4";
-
-  console.log(version);
+  const version = "3";
 
   return {
     statusCode: 200,

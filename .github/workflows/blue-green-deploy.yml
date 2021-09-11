@@ -34,7 +34,7 @@ jobs:
 
       - name: Install npm packages
         run: |
-          export NODE_ENV=production
+          # export NODE_ENV=production
           yarn install
 
       - name: Transpile to JS
