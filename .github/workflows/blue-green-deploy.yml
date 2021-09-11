@@ -66,7 +66,7 @@ jobs:
           yarn cdk deploy bgd-apigateway-blue-stage --require-approval never -e
 
           # CLIから対象のAPI GatewayのAPI IDを取得
-          REST_API_ID=$(aws apigateway get-rest-apis | jq '.items[] | select(.name == "bgd") | .id')
+          REST_API_ID=$(aws apigateway get-rest-apis | jq -r '.items[] | select(.name == "bgd") | .id')
           echo "REST_API_ID=${REST_API_ID}" >> $GITHUB_ENV
 
           # "blue"ステージにデプロイ（デプロイメントを更新しないとAPI Gatewayの更新が反映されないため）
@@ -86,7 +86,7 @@ jobs:
 
           # 発行されたバージョンのナンバリングを取得
           JSON=`cat response.json`
-          LAMBDA_NEW_VERSION=$(echo $JSON | jq ".Version | tonumber")
+          LAMBDA_NEW_VERSION=$(echo $JSON | jq -r '.Version')
 
           # "green"エイリアスを発行バージョンに更新
           aws lambda update-alias \
