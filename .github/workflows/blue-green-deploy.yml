@@ -60,6 +60,8 @@ jobs:
             --function-name bgd \
             --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
+          aws lambda wait function-updated --function-name bgd
+
       - name: Deploy(=Create) the "blue" stage to API Gateway
         run: |
           # API Gatewayに"blue"用のステージを作成
