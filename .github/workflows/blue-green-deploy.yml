@@ -65,7 +65,9 @@ jobs:
       - name: Deploy(=Create) the "blue" stage to API Gateway
         run: |
           # API Gatewayに"blue"用のステージを作成
-          yarn cdk deploy bgd-apigateway-blue-stage --require-approval never -e
+          yarn cdk deploy bgd-apigateway-blue-stage \
+            --require-approval never \
+            --exclusively
 
           # CLIから対象のAPI GatewayのAPI IDを取得
           REST_API_ID=$(aws apigateway get-rest-apis | jq -r '.items[] | select(.name == "bgd") | .id')
@@ -105,4 +107,4 @@ jobs:
       - name: Destroy the "blue" stage
         run: |
           # "blue"ステージを削除
-          yarn cdk destroy bgd-apigateway-blue-stage --require-approval never -e
+          yarn cdk destroy bgd-apigateway-blue-stage --force
