@@ -30,8 +30,6 @@ export class LambdaRestApiGateway extends cdk.Stack {
       path: `2015-03-31/functions/${lambdaAlias.functionArn}/invocations`,
     });
 
-    // const defaultIntegration = new apigateway.LambdaIntegration(lambdaFunction);
-
     this.restApi = new apigateway.RestApi(this, id, {
       restApiName,
       endpointTypes: [apigateway.EndpointType.REGIONAL],
