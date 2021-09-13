@@ -34,7 +34,6 @@ jobs:
 
       - name: Install npm packages
         run: |
-          # export NODE_ENV=production
           yarn install
 
       - name: Transpile to JS
@@ -55,16 +54,19 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-          # Lambdaに新しくプッシュされたImageを適用（latestバージョンに適用される）
+          # ImageをLambdaにデプロイ
+          # ここでlatestバージョンに最新のアプリケーションがあたり、latestのエイリアスであるGreenも最新になります
           aws lambda update-function-code \
             --function-name bgd \
             --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
+          # Lambdaの更新が完了するまで待機
+          # Lambdaが更新状態であると、後続StepのLambda向けのコマンドが失敗してしまうため、明示的に完了するまで待機しています
           aws lambda wait function-updated --function-name bgd
 
       - name: Deploy(=Create) the "blue" stage to API Gateway
         run: |
-          # API Gatewayに"blue"用のステージを作成
+          # API Gatewayに"blue"ステージを作成
           yarn cdk deploy bgd-apigateway-blue-stage \
             --require-approval never \
             --exclusively
@@ -73,13 +75,13 @@ jobs:
           REST_API_ID=$(aws apigateway get-rest-apis | jq -r '.items[] | select(.name == "bgd") | .id')
           echo "REST_API_ID=${REST_API_ID}" >> $GITHUB_ENV
 
-          # "blue"ステージにデプロイ（デプロイメントを更新しないとAPI Gatewayの更新が反映されないため）
+          # "blue"ステージのデプロイメントを更新（デプロイメントを更新しないとAPI Gateway自体の更新が反映されないため）
           aws apigateway create-deployment \
             --rest-api-id $REST_API_ID \
             --stage-name blue \
             --description "For blue stage deployment by CICD"
 
-      - name: E2E test
+      - name: Test
         run: |
           echo success
 
@@ -88,23 +90,22 @@ jobs:
           # Lambdaの新しいバージョンを発行
           aws lambda publish-version --function-name bgd >> response.json
 
-          # 発行されたバージョンのナンバリングを取得
+          # 発行されたナンバリングバージョンを取得
           JSON=`cat response.json`
           LAMBDA_NEW_VERSION=$(echo $JSON | jq -r '.Version')
 
-          # "green"エイリアスを発行バージョンに更新
+          # 発行バージョンを"green"にエイリアス
           aws lambda update-alias \
             --function-name bgd \
             --function-version $LAMBDA_NEW_VERSION \
             --name green
 
-          # "green"ステージにデプロイ（デプロイメントを更新しないとAPI Gatewayの更新が反映されないため）
+          # "green"ステージのデプロイメントを更新（デプロイメントを更新しないとAPI Gatewayの更新が反映されないため）
           aws apigateway create-deployment \
             --rest-api-id ${REST_API_ID} \
             --stage-name green \
             --description "For green stage deployment by CICD"
 
-      - name: Destroy the "blue" stage
+      - name: Destroy the "blue" stage to API Gateway
         run: |
-          # "blue"ステージを削除
           yarn cdk destroy bgd-apigateway-blue-stage --force
